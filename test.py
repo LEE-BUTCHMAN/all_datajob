@@ -7,7 +7,7 @@ warnings.filterwarnings('ignore', category=UserWarning)
 
 
 def connect_and_query():
-    """PyMySQL을 사용하여 AWS RDS MySQL에 접속하고 쿼리 실행"""
+    """PyMySQL을 사용 하여 AWS RDS MySQL에 접속 하고 쿼리 실행"""
 
     try:
         # 데이터베이스 연결
