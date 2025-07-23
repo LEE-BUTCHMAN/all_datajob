@@ -7,15 +7,15 @@ warnings.filterwarnings('ignore', category=UserWarning)
 
 
 def connect_and_query():
-    """PyMySQL을 사용하여 AWS RDS MySQL에 접속하고 쿼리 실행"""
+    """PyMySQL을 사용 하여 AWS RDS MySQL에 접속 하고 쿼리 실행"""
 
     try:
         # 데이터베이스 연결
         print("MySQL 데이터베이스에 연결 중...")
         connection = pymysql.connect(
-            host='analytics-prod-20250718-cluster.cluster-ro-ch624l3cypvt.ap-northeast-2.rds.amazonaws.com',
-            user='dba_data',
-            password='dbadata1qaz2wsx',
+            host='prod-common-db.cluster-ro-ch624l3cypvt.ap-northeast-2.rds.amazonaws.com',
+            user='cancun_data',
+            password='#ZXsd@~H>)2>',
             database='cancun',
             port=3306,
             charset='utf8mb4'
