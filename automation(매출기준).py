@@ -172,7 +172,7 @@ def update_sheets(direct_df, parcel_df):
             worksheet.update_cell(target_row, 6, int(row['coupon']))
 
             # G열: 배송비
-            worksheet.update_cell(target_row, 7, int(row['delivery_price_vat']))
+            worksheet.update_cell(target_row, 7, int(row['delivery_price']))
 
             # H열: 주문수
             worksheet.update_cell(target_row, 8, int(row['orders']))
