@@ -77,8 +77,8 @@ inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
 inner join cancun.`user` u on u.base_user_id = s.user_id
 inner join cancun.base_user bu on bu.id = u.base_user_id
 where si.is_deleted = 0
-and substr(s.order_dated_at,1,10) >= '2025-07-14'
-and substr(s.order_dated_at,1,10) <= '2025-07-20'
+and substr(si.entering_dated_at,1,10) >= '2025-07-14'
+and substr(si.entering_dated_at,1,10) <= '2025-07-20'
 group by 1,2,3,4,5"""
 
     df = pd.read_sql(query, connection)
@@ -89,7 +89,7 @@ group by 1,2,3,4,5"""
 
     # 직배 필터링
     direct_df = df[base_filter & (df['delivery_type'] == '직배')]
-    direct_summary = direct_df.groupby('order_week').agg({
+    direct_summary = direct_df.groupby('entering_week').agg({
         'supply_price': 'sum',
         'discount_price': 'sum',
         'delivery_price': 'sum',
@@ -103,7 +103,7 @@ group by 1,2,3,4,5"""
 
     # 택배 필터링
     parcel_df = df[base_filter & (df['delivery_type'] == '택배')]
-    parcel_summary = parcel_df.groupby('order_week').agg({
+    parcel_summary = parcel_df.groupby('entering_week').agg({
         'supply_price': 'sum',
         'discount_price': 'sum',
         'delivery_price': 'sum',
@@ -136,7 +136,7 @@ def update_sheets(direct_df, parcel_df):
     def update_delivery_data(df, delivery_type):
         """배송 유형별 데이터 업데이트"""
         for _, row in df.iterrows():
-            week = int(row['order_week'])
+            week = int(row['entering_week'])
 
             # 해당 주차와 배송 유형에 맞는 행 찾기
             target_rows = []
