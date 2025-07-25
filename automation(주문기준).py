@@ -69,7 +69,7 @@ def get_weekly_data():
     THEN s.user_id
     ELSE NULL
 END) AS first_order_users,
-    CAST(ROUND(s.delivery_price / 1.1, 0) AS SIGNED) as delivery_price_vat
+    CAST(ROUND(s.delivery_price / 1.1, 0) AS SIGNED) as delivery_price
 from cancun.shipment_item si
 inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
 inner join cancun.`user` u on u.base_user_id = s.user_id
