@@ -16,11 +16,11 @@ def get_weekly_data():
     )
 
     query = """SELECT week(substr(s.order_dated_at, 1, 10), 1)                                 as order_week, 
-                      sum(CASE si.tax_type \
+                      sum(CASE si.tax_type 
                               WHEN 'TAX' THEN CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) 
                               ELSE CAST(ROUND(si.price * si.quantity, 0) AS SIGNED) 
                           END)                                                                 AS supply_price, 
-                      sum(CASE si.tax_type \
+                      sum(CASE si.tax_type 
                               WHEN 'TAX' THEN CAST(ROUND((si.list_price - si.price) * si.quantity / 1.1, 0) AS SIGNED) 
                               ELSE CAST(ROUND((si.list_price - si.price) * si.quantity, 0) AS SIGNED) 
                           END)                                                                 AS discount_price, 
@@ -30,7 +30,7 @@ def get_weekly_data():
                       count(s.order_number)                                                    as orders_sku
                FROM cancun.shipment_item si
                         INNER JOIN cancun.shipment s ON s.id = si.shipment_id AND s.status != 'DELETE'
-    INNER JOIN cancun.`user` u \
+    INNER JOIN cancun.`user` u 
                ON u.base_user_id = s.user_id
                    INNER JOIN cancun.base_user bu ON bu.id = u.base_user_id
                WHERE si.is_deleted = 0
