@@ -90,7 +90,7 @@ group by 1,2,3,4,5"""
     direct_summary = direct_df.groupby('order_week').agg({
         'supply_price': 'sum',
         'discount_price': 'sum',
-        'delivery_price_vat': 'sum',
+        'delivery_price': 'sum',
         'coupon': 'sum',
         'point': 'sum',
         'orders': 'sum',
@@ -104,7 +104,7 @@ group by 1,2,3,4,5"""
     parcel_summary = parcel_df.groupby('order_week').agg({
         'supply_price': 'sum',
         'discount_price': 'sum',
-        'delivery_price_vat': 'sum',
+        'delivery_price': 'sum',
         'coupon': 'sum',
         'point': 'sum',
         'orders': 'sum',
