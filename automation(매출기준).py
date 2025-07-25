@@ -83,7 +83,7 @@ group by 1,2,3,4,5"""
     connection.close()
 
     # 기본 필터링 조건
-    base_filter = (df['item_status'] == '주문') & (df['delivery_status'].isin(['결제완료', '배송중', '배송완료', '배송준비']))
+    base_filter = (df['item_status'] == '주문') & (df['delivery_status'].isin(['배송중', '배송완료', '배송준비']))
 
     # 직배 필터링
     direct_df = df[base_filter & (df['delivery_type'] == '직배')]
