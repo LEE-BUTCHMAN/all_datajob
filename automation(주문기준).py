@@ -126,7 +126,7 @@ def update_sheets(direct_df, parcel_df):
 
     # 시트 열기
     sheet = client.open_by_key('1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE')
-    worksheet = sheet.worksheet('automation')
+    worksheet = sheet.worksheet('automation(주문)')
 
     # B열에서 모든 주차 데이터 읽기
     week_data = worksheet.col_values(2)

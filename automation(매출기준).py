@@ -20,7 +20,9 @@ def get_weekly_data():
     )
 
     # 사용자 제공 쿼리 (정확히 이 쿼리 사용!)
-    query = """select year (substr(s.order_dated_at, 1, 10)) as order_year, week(substr(s.order_dated_at, 1, 10), 1) as order_week, CASE s.status
+    query = """select year(substr(si.entering_dated_at,1,10)) as entering_year,
+                      week(substr(si.entering_dated_at, 1, 10), 1) as entering_week,
+                   CASE s.status
                    WHEN 'PENDING' THEN '입금대기'
                    WHEN 'PAYMENT' THEN '결제완료'
                    WHEN 'READY_SHIPMENT' THEN '배송준비'
@@ -126,7 +128,7 @@ def update_sheets(direct_df, parcel_df):
 
     # 시트 열기
     sheet = client.open_by_key('1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE')
-    worksheet = sheet.worksheet('automation')
+    worksheet = sheet.worksheet('automation(매출)')
 
     # B열에서 모든 주차 데이터 읽기
     week_data = worksheet.col_values(2)
