@@ -2,169 +2,123 @@ import pymysql
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
-import warnings
-
-warnings.filterwarnings('ignore', category=UserWarning)
 
 
-def connect_and_query():
-    """MySQL 데이터 조회"""
-    try:
-        connection = pymysql.connect(
-            host='prod-common-db.cluster-ro-ch624l3cypvt.ap-northeast-2.rds.amazonaws.com',
-            user='cancun_data',
-            password='#ZXsd@~H>)2>',
-            database='cancun',
-            port=3306,
-            charset='utf8mb4'
-        )
+def get_weekly_data():
+    """MySQL에서 주차별 기본 데이터 조회"""
+    connection = pymysql.connect(
+        host='prod-common-db.cluster-ro-ch624l3cypvt.ap-northeast-2.rds.amazonaws.com',
+        user='cancun_data',
+        password='#ZXsd@~H>)2>',
+        database='cancun',
+        port=3306,
+        charset='utf8mb4'
+    )
 
-        query = """SELECT year (substr(s.order_dated_at, 1, 10)) as order_year, week(substr(s.order_dated_at, 1, 10), 1) as order_week, CASE s.status
-                       WHEN 'PENDING' THEN '입금대기'
-                       WHEN 'PAYMENT' THEN '결제완료'
-                       WHEN 'READY_SHIPMENT' THEN '배송준비'
-                       WHEN 'SHIPPING' THEN '배송중'
-                       WHEN 'SHIPPING_COMPLETE' THEN '배송완료'
-                       WHEN 'CANCEL_REQUEST' THEN '취소요청'
-                       WHEN 'CANCEL' THEN '취소완료'
-                       ELSE '기타'
-        END \
-        AS delivery_status,
-       CASE si.item_status
-                 WHEN 'PENDING' THEN '입금대기'
-                 WHEN 'ORDER' THEN '주문'
-                 WHEN 'CANCEL_PARTIAL' THEN '부분취소'
-                 WHEN 'CANCEL_REQUEST' THEN '취소요청'
-                 WHEN 'CANCEL' THEN '취소완료'
-                 ELSE 'UNKNOWN'
-        END \
-        AS item_status,
-       CASE WHEN s.courier = 'SFN' THEN '직배'
-            ELSE '택배'
-        END \
-        as delivery_type,
-       sum(CASE si.tax_type
-       WHEN 'TAX' THEN CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED)
-       ELSE CAST(ROUND(si.price * si.quantity, 0) AS SIGNED)
-       END) AS supply_price,
-       sum(CASE si.tax_type
-                 WHEN 'TAX' THEN CAST(ROUND((si.list_price - si.price) * si.quantity / 1.1, 0) AS SIGNED)
-                 ELSE CAST(ROUND((si.list_price - si.price) * si.quantity, 0) AS SIGNED)
-                 END) AS discount_price,
-      count(distinct s.order_number) as orders,
-      count(s.order_number) as orders_sku,
-      count(bu.id) as orders_burial,
-      sum(s.delivery_price - CAST(ROUND(s.delivery_price / 1.1, 0) AS SIGNED)) as delivery_price_vat
-from cancun.shipment_item si
-inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
-inner join cancun.`user` u on u.base_user_id = s.user_id
-inner join cancun.base_user bu on bu.id = u.base_user_id
-where si.is_deleted = 0
-and substr(s.order_dated_at,1,10) >= '2025-07-14'
-and substr(s.order_dated_at,1,10) <= '2025-07-20'
-group by 1,2,3,4,5"""
+    query = """SELECT week(substr(s.order_dated_at, 1, 10), 1)                                 as order_week, \
+                      sum(CASE si.tax_type \
+                              WHEN 'TAX' THEN CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) \
+                              ELSE CAST(ROUND(si.price * si.quantity, 0) AS SIGNED) \
+                          END)                                                                 AS supply_price, \
+                      sum(CASE si.tax_type \
+                              WHEN 'TAX' THEN CAST(ROUND((si.list_price - si.price) * si.quantity / 1.1, 0) AS SIGNED) \
+                              ELSE CAST(ROUND((si.list_price - si.price) * si.quantity, 0) AS SIGNED) \
+                          END)                                                                 AS discount_price, \
+                      sum(s.delivery_price - CAST(ROUND(s.delivery_price / 1.1, 0) AS SIGNED)) as delivery_price_vat, \
+                      count(distinct s.order_number)                                           as orders, \
+                      count(bu.id)                                                             as orders_burial, \
+                      count(s.order_number)                                                    as orders_sku
+               FROM cancun.shipment_item si
+                        INNER JOIN cancun.shipment s ON s.id = si.shipment_id AND s.status != 'DELETE'
+    INNER JOIN cancun.`user` u \
+               ON u.base_user_id = s.user_id
+                   INNER JOIN cancun.base_user bu ON bu.id = u.base_user_id
+               WHERE si.is_deleted = 0
+                 AND si.item_status = 'ORDER'
+                 AND s.status IN ('PAYMENT' \
+                   , 'READY_SHIPMENT' \
+                   , 'SHIPPING' \
+                   , 'SHIPPING_COMPLETE')
+                 AND substr(s.order_dated_at \
+                   , 1 \
+                   , 10) >= '2025-07-01'
+               GROUP BY 1
+               ORDER BY 1"""
 
-        df = pd.read_sql(query, connection)
-        return df
-
-    except Exception as e:
-        print(f"MySQL 오류: {e}")
-        return None
-    finally:
-        if 'connection' in locals():
-            connection.close()
+    df = pd.read_sql(query, connection)
+    connection.close()
+    return df
 
 
-def process_data(df):
-    """데이터 필터링 및 집계"""
-    # 아이템상태='주문' AND 배송상태가 결제완료/배송중/배송완료/배송준비만 필터링
-    valid_statuses = ['결제완료', '배송중', '배송완료', '배송준비']
-    filtered_df = df[
-        (df['item_status'] == '주문') &
-        (df['delivery_status'].isin(valid_statuses))
-        ]
-
-    # order_week별로 집계
-    summary = filtered_df.groupby('order_week').agg({
-        'supply_price': 'sum',
-        'discount_price': 'sum',
-        'delivery_price_vat': 'sum',
-        'orders': 'sum',
-        'orders_sku': 'sum',
-        'orders_burial': 'sum'
-    }).reset_index()
-
-    return summary
-
-
-def update_google_sheets(summary_df):
+def update_sheets(df):
     """Google Sheets 업데이트"""
-    try:
-        # 구글 서비스 계정 인증 (JSON 키 파일 필요)
-        scope = [
-            'https://spreadsheets.google.com/feeds',
-            'https://www.googleapis.com/auth/drive'
-        ]
+    # 인증
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = Credentials.from_service_account_file('service-account-key.json', scopes=scope)
+    client = gspread.authorize(creds)
 
-        # 서비스 계정 키 파일 경로 (미리 생성 필요)
-        creds = Credentials.from_service_account_file('path/to/service-account-key.json', scopes=scope)
-        client = gspread.authorize(creds)
+    # 시트 열기
+    sheet = client.open_by_key('1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE')
+    worksheet = sheet.worksheet('automation')
 
-        # 스프레드시트 열기
-        sheet_id = '1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE'
-        sheet = client.open_by_key(sheet_id)
-        worksheet = sheet.worksheet('automation')
+    # B열에서 주차 데이터 읽기
+    week_data = worksheet.col_values(2)[1:]  # 헤더 제외
 
-        # 기존 데이터 읽기 (헤더 확인)
-        existing_data = worksheet.get_all_records()
+    # 각 주차별 업데이트
+    for _, row in df.iterrows():
+        week = int(row['order_week'])
 
-        # 각 주차별로 업데이트
-        for _, row in summary_df.iterrows():
-            week = row['order_week']
+        # 해당 주차 행 찾기
+        target_row = None
+        for idx, sheet_week in enumerate(week_data):
+            if sheet_week and int(sheet_week) == week:
+                target_row = idx + 2
+                break
 
-            # 해당 주차 행 찾기 (컬럼 매칭 필요)
-            target_row = None
-            for idx, existing_row in enumerate(existing_data):
-                if existing_row.get('order_week') == week:  # 컬럼명 확인 필요
-                    target_row = idx + 2  # 헤더 고려
-                    break
+        if target_row:
+            print(f"{week}주차 업데이트 중...")
 
-            if target_row:
-                # 데이터 업데이트 (컬럼 위치는 실제 시트 구조에 맞게 조정)
-                updates = [
-                    ['C' + str(target_row), row['supply_price']],  # 공급가
-                    ['D' + str(target_row), row['discount_price']],  # 할인금액
-                    ['E' + str(target_row), row['delivery_price_vat']],  # 배송비
-                    ['F' + str(target_row), row['orders']],  # 주문수
-                    ['G' + str(target_row), row['orders_sku']],  # 총품목수
-                    ['H' + str(target_row), row['orders_burial']]  # 주문매칭수
-                ]
+            # C열: 공급가
+            worksheet.update(f'C{target_row}', int(row['supply_price']))
 
-                for cell, value in updates:
-                    worksheet.update(cell, value)
+            # D열: 할인금액
+            worksheet.update(f'D{target_row}', int(row['discount_price']))
 
-        print("Google Sheets 업데이트 완료!")
+            # E열: 포인트 (나중에 추가)
+            # worksheet.update(f'E{target_row}', 0)
 
-    except Exception as e:
-        print(f"Google Sheets 오류: {e}")
+            # F열: 쿠폰 (나중에 추가)
+            # worksheet.update(f'F{target_row}', 0)
+
+            # G열: 배송비
+            worksheet.update(f'G{target_row}', int(row['delivery_price_vat']))
+
+            # H열: 주문수
+            worksheet.update(f'H{target_row}', int(row['orders']))
+
+            # I열: 주문매장수
+            worksheet.update(f'I{target_row}', int(row['orders_burial']))
+
+            # J열: 신규주문매장수 (나중에 추가)
+            # worksheet.update(f'J{target_row}', 0)
+
+            # K열: 총품목수량
+            worksheet.update(f'K{target_row}', int(row['orders_sku']))
+
+            print(f"{week}주차 완료!")
 
 
 def main():
-    """메인 실행 함수"""
-    # 1. MySQL에서 데이터 조회
-    df = connect_and_query()
-    if df is None:
-        return
+    print("주차별 데이터 업데이트 시작...")
 
-    # 2. 데이터 처리
-    summary = process_data(df)
-    print("집계 데이터:")
-    print(summary)
+    # 데이터 조회
+    df = get_weekly_data()
+    print(f"{len(df)}개 주차 데이터 조회 완료")
 
-    # 3. Google Sheets 업데이트
-    update_google_sheets(summary)
+    # 시트 업데이트
+    update_sheets(df)
+    print("업데이트 완료!")
 
 
 if __name__ == "__main__":
-    # 필요한 라이브러리: pip install gspread google-auth google-auth-oauthlib
     main()
