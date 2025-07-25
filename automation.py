@@ -2,6 +2,10 @@ import pymysql
 import pandas as pd
 import gspread
 from google.oauth2.service_account import Credentials
+import warnings
+
+# 모든 warning 무시
+warnings.filterwarnings('ignore')
 
 
 def get_weekly_data():
@@ -15,18 +19,18 @@ def get_weekly_data():
         charset='utf8mb4'
     )
 
-    query = """SELECT week(substr(s.order_dated_at, 1, 10), 1)                                 as order_week, 
+    query = """SELECT week(substr(s.order_dated_at, 1, 10), 1)                                 as order_week, \
                       sum(CASE si.tax_type \
-                              WHEN 'TAX' THEN CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) 
-                              ELSE CAST(ROUND(si.price * si.quantity, 0) AS SIGNED) 
-                          END)                                                                 AS supply_price, 
+                              WHEN 'TAX' THEN CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) \
+                              ELSE CAST(ROUND(si.price * si.quantity, 0) AS SIGNED) \
+                          END)                                                                 AS supply_price, \
                       sum(CASE si.tax_type \
-                              WHEN 'TAX' THEN CAST(ROUND((si.list_price - si.price) * si.quantity / 1.1, 0) AS SIGNED) 
-                              ELSE CAST(ROUND((si.list_price - si.price) * si.quantity, 0) AS SIGNED) 
-                          END)                                                                 AS discount_price, 
-                      sum(s.delivery_price - CAST(ROUND(s.delivery_price / 1.1, 0) AS SIGNED)) as delivery_price_vat, 
-                      count(distinct s.order_number)                                           as orders, 
-                      count(bu.id)                                                             as orders_burial, 
+                              WHEN 'TAX' THEN CAST(ROUND((si.list_price - si.price) * si.quantity / 1.1, 0) AS SIGNED) \
+                              ELSE CAST(ROUND((si.list_price - si.price) * si.quantity, 0) AS SIGNED) \
+                          END)                                                                 AS discount_price, \
+                      sum(s.delivery_price - CAST(ROUND(s.delivery_price / 1.1, 0) AS SIGNED)) as delivery_price_vat, \
+                      count(distinct s.order_number)                                           as orders, \
+                      count(bu.id)                                                             as orders_burial, \
                       count(s.order_number)                                                    as orders_sku
                FROM cancun.shipment_item si
                         INNER JOIN cancun.shipment s ON s.id = si.shipment_id AND s.status != 'DELETE'
@@ -35,12 +39,12 @@ def get_weekly_data():
                    INNER JOIN cancun.base_user bu ON bu.id = u.base_user_id
                WHERE si.is_deleted = 0
                  AND si.item_status = 'ORDER'
-                 AND s.status IN ('PAYMENT' 
-                   , 'READY_SHIPMENT' 
-                   , 'SHIPPING' 
+                 AND s.status IN ('PAYMENT' \
+                   , 'READY_SHIPMENT' \
+                   , 'SHIPPING' \
                    , 'SHIPPING_COMPLETE')
-                 AND substr(s.order_dated_at 
-                   , 1 
+                 AND substr(s.order_dated_at \
+                   , 1 \
                    , 10) >= '2025-07-01'
                GROUP BY 1
                ORDER BY 1"""
