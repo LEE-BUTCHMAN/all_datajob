@@ -185,7 +185,7 @@ def get_bs_segment_data():
                 inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
                 where si.is_deleted = 0
                   and si.item_status in ('ORDER')
-                  and s.status in ('SHIPPING', 'SHIPPING_COMPLETE', 'READY_SHIPMENT')
+                  and s.status in ('PAYMENT', 'SHIPPING', 'SHIPPING_COMPLETE', 'READY_SHIPMENT')
                   and substr(si.entering_dated_at, 1, 10) >= '2025-07-14'
                   and substr(si.entering_dated_at, 1, 10) <= '2025-07-20'
                 group by 1, 2, 3, 4
