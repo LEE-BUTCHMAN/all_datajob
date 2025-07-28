@@ -8,7 +8,7 @@ import time
 # 모든 warning 무시
 warnings.filterwarnings('ignore')
 
-# 업종 순서 정의 (두 번째 코드에서 가져옴)
+# 업종 순서 정의
 BUSINESS_ORDER = [
     '서양식·피자·파스타·햄버거',
     '카페·샐러드·샌드위치',
@@ -34,7 +34,6 @@ def get_weekly_data():
         charset='utf8mb4'
     )
 
-    # 사용자 제공 쿼리 (정확히 이 쿼리 사용!)
     query = """select year (substr(s.order_dated_at, 1, 10)) as order_year, week(substr(s.order_dated_at, 1, 10), 1) as order_week, CASE s.status
                    WHEN 'PENDING' THEN '입금대기'
                    WHEN 'PAYMENT' THEN '결제완료'
@@ -142,9 +141,8 @@ def get_bs_segment_data():
         charset='utf8mb4'
     )
 
-    # 직배/택배별 금액 구간 비중 쿼리
     query = """
-    select order_year,
+            select order_year,
            order_week,
            delivery_type,
            max(case when bs_seg = '15만_under' then percentage else null end) as '15_under_percentage',
@@ -203,7 +201,7 @@ def get_bs_segment_data():
     direct_df = df[df['delivery_type'] == '직배'].copy()
     parcel_df = df[df['delivery_type'] == '택배'].copy()
 
-    # delivery_type 컬럼 제거 (불필요)
+    # delivery_type 컬럼 제거
     direct_df = direct_df.drop('delivery_type', axis=1)
     parcel_df = parcel_df.drop('delivery_type', axis=1)
 
@@ -211,7 +209,7 @@ def get_bs_segment_data():
 
 
 def get_weekly_data_business():
-    """업종별 데이터 조회 (두 번째 코드에서 가져옴)"""
+    """업종별 데이터 조회"""
     connection = pymysql.connect(
         host='prod-common-db.cluster-ro-ch624l3cypvt.ap-northeast-2.rds.amazonaws.com',
         user='cancun_data',
@@ -221,7 +219,6 @@ def get_weekly_data_business():
         charset='utf8mb4'
     )
 
-    # 업종별 쿼리
     query = """select year (substr(s.order_dated_at, 1, 10)) as order_year, week(substr(s.order_dated_at, 1, 10), 1) as order_week, CASE s.status
                    WHEN 'PENDING' THEN '입금대기'
                    WHEN 'PAYMENT' THEN '결제완료'
@@ -315,7 +312,7 @@ def get_weekly_data_business():
 
 
 def update_sheets(direct_df, parcel_df):
-    """Google Sheets automation 시트에 직배/택배 각각 업데이트"""
+    """Google Sheets에 직배/택배 데이터 업데이트 - 각 항목별 고정 행에 주차별 열로 입력"""
     # 인증
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = Credentials.from_service_account_file('/Users/sfn/Downloads/automation-data-467003-6310e37f0e5c.json',
@@ -326,88 +323,69 @@ def update_sheets(direct_df, parcel_df):
     sheet = client.open_by_key('1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE')
     worksheet = sheet.worksheet('automation(주문)')
 
-    # B열에서 모든 주차 데이터 읽기
-    week_data = worksheet.col_values(2)
+    # 직배 항목별 행 번호 (실제 시트 기준)
+    direct_rows = {
+        'supply_price': 33,  # 공급가
+        'discount_price': 34,  # 할인금액
+        'point': 36,  # 포인트
+        'coupon': 38,  # 쿠폰
+        'delivery_price': 40,  # 배송비
+        'orders': 41,  # 주문수
+        'orders_burial': 42,  # 주문매칭수
+        'first_order_users': 43,  # 신규주문매칭수
+        'orders_sku': 44  # 총품목수량
+    }
 
-    def update_delivery_data(df, delivery_type):
-        """배송 유형별 데이터 업데이트"""
+    # 택배 항목별 행 번호 (택배 섹션 시작 행 필요)
+    parcel_rows = {
+        'supply_price': 59,  # 공급가 (추정)
+        'discount_price': 60,  # 할인금액 (추정)
+        'point': 62,  # 포인트 (추정)
+        'coupon': 64,  # 쿠폰 (추정)
+        'delivery_price': 66,  # 배송비 (추정)
+        'orders': 67,  # 주문수 (추정)
+        'orders_burial': 68,  # 주문매칭수 (추정)
+        'first_order_users': 69,  # 신규주문매칭수 (추정)
+        'orders_sku': 70  # 총품목수량 (추정)
+    }
+
+    def update_delivery_data_by_row(df, delivery_type, item_rows):
+        """배송 유형별 데이터 업데이트 - 행별로 주차 데이터를 열에 입력"""
+        print(f"\n=== {delivery_type} 데이터 업데이트 ===")
+
         for _, row in df.iterrows():
             week = int(row['order_week'])
 
-            # 해당 주차와 배송 유형에 맞는 행 찾기
-            target_rows = []
-            for idx, sheet_week in enumerate(week_data):
-                try:
-                    if sheet_week and int(sheet_week) == week:
-                        target_rows.append(idx + 1)
-                except ValueError:
-                    continue
+            # 29주차부터 시작하여 해당 주차의 열 계산 (B열=2부터 시작)
+            target_col = 2 + (week - 29)
 
-            # 직배는 첫 번째 매칭, 택배는 두 번째 매칭 (보통 아래쪽)
-            if delivery_type == '직배' and target_rows:
-                target_row = target_rows[0]  # 첫 번째 매칭 (위쪽)
-            elif delivery_type == '택배' and len(target_rows) > 1:
-                target_row = target_rows[1]  # 두 번째 매칭 (아래쪽)
-            elif delivery_type == '택배' and len(target_rows) == 1:
-                # 택배만 있는 경우 첫 번째 사용
-                target_row = target_rows[0]
-            else:
-                print(f"{delivery_type} {week}주차 업데이트할 행을 찾을 수 없습니다.")
+            # 유효한 범위 체크 (29주차~40주차)
+            if week < 29 or week > 40:
+                print(f"{delivery_type} {week}주차는 범위를 벗어났습니다 (29~40주차만 지원)")
                 continue
 
-            print(f"{delivery_type} {week}주차 업데이트 중... (행: {target_row})")
+            print(f"{delivery_type} {week}주차 업데이트 중... (열: {target_col})")
 
-            # C열: 공급가
-            worksheet.update_cell(target_row, 3, int(row['supply_price']))
-            time.sleep(1.0)  # API 제한 방지
-
-            # D열: 할인금액
-            worksheet.update_cell(target_row, 4, int(row['discount_price']))
-            time.sleep(1.0)
-
-            # E열: 포인트
-            worksheet.update_cell(target_row, 5, int(row['point']))
-            time.sleep(1.0)
-
-            # F열: 쿠폰
-            worksheet.update_cell(target_row, 6, int(row['coupon']))
-            time.sleep(1.0)
-
-            # G열: 배송비
-            worksheet.update_cell(target_row, 7, int(row['delivery_price']))
-            time.sleep(1.0)
-
-            # H열: 주문수
-            worksheet.update_cell(target_row, 8, int(row['orders']))
-            time.sleep(1.0)
-
-            # I열: 주문매칭수
-            worksheet.update_cell(target_row, 9, int(row['orders_burial']))
-            time.sleep(1.0)
-
-            # J열: 신규주문매칭수 (첫구매자)
-            worksheet.update_cell(target_row, 10, int(row['first_order_users']))
-            time.sleep(1.0)
-
-            # K열: 총품목수량
-            worksheet.update_cell(target_row, 11, int(row['orders_sku']))
-            time.sleep(1.0)
+            # 각 항목별로 해당 행에 데이터 입력
+            for item_key, item_row in item_rows.items():
+                value = int(row[item_key])
+                worksheet.update_cell(item_row, target_col, value)
+                time.sleep(1.0)
+                print(f"  {item_key}: 행{item_row}, 열{target_col} = {value}")
 
             print(f"{delivery_type} {week}주차 완료!")
 
     # 직배 데이터 업데이트
     if not direct_df.empty:
-        print("\n=== 직배 데이터 업데이트 ===")
-        update_delivery_data(direct_df, '직배')
+        update_delivery_data_by_row(direct_df, '직배', direct_rows)
 
     # 택배 데이터 업데이트
     if not parcel_df.empty:
-        print("\n=== 택배 데이터 업데이트 ===")
-        update_delivery_data(parcel_df, '택배')
+        update_delivery_data_by_row(parcel_df, '택배', parcel_rows)
 
 
 def update_bs_segment_sheets(direct_df, parcel_df):
-    """Google Sheets에 금액 구간별 비중 데이터 업데이트 (Q,R,S,T,U 열)"""
+    """Google Sheets에 금액 구간별 비중 데이터 업데이트 - 각 구간별 고정 행에 주차별 열로 입력"""
     # 인증
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = Credentials.from_service_account_file('/Users/sfn/Downloads/automation-data-467003-6310e37f0e5c.json',
@@ -418,76 +396,61 @@ def update_bs_segment_sheets(direct_df, parcel_df):
     sheet = client.open_by_key('1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE')
     worksheet = sheet.worksheet('automation(주문)')
 
-    # B열에서 모든 주차 데이터 읽기
-    week_data = worksheet.col_values(2)
+    # 직배 BS구간별 행 번호 (실제 시트 기준)
+    direct_bs_rows = {
+        '15_under_percentage': 46,  # 15만 미만(%)
+        '15_up_percentage': 47,  # 15만 이상(%)
+        '20_up_percentage': 48,  # 20만 이상(%)
+        '25_up_percentage': 49,  # 25만 이상(%)
+        '30_up_percentage': 50  # 30만 이상(%)
+    }
 
-    def update_bs_data(df, delivery_type):
-        """배송 유형별 금액 구간 비중 데이터 업데이트"""
+    # 택배 BS구간별 행 번호 (실제 시트 기준)
+    parcel_bs_rows = {
+        '15_under_percentage': 72,  # 15만 미만(%)
+        '15_up_percentage': 73,  # 15만 이상(%)
+        '20_up_percentage': 74,  # 20만 이상(%)
+        '25_up_percentage': 75,  # 25만 이상(%)
+        '30_up_percentage': 76  # 30만 이상(%)
+    }
+
+    def update_bs_data_by_row(df, delivery_type, bs_rows):
+        """배송 유형별 금액 구간 비중 데이터 업데이트 - 행별로 주차 데이터를 열에 입력"""
+        print(f"\n=== {delivery_type} 금액구간 비중 업데이트 ===")
+
         for _, row in df.iterrows():
             week = int(row['order_week'])
 
-            # 해당 주차와 배송 유형에 맞는 행 찾기
-            target_rows = []
-            for idx, sheet_week in enumerate(week_data):
-                try:
-                    if sheet_week and int(sheet_week) == week:
-                        target_rows.append(idx + 1)
-                except ValueError:
-                    continue
+            # 29주차부터 시작하여 해당 주차의 열 계산 (B열=2부터 시작)
+            target_col = 2 + (week - 29)
 
-            # 직배는 첫 번째 매칭, 택배는 두 번째 매칭
-            if delivery_type == '직배' and target_rows:
-                target_row = target_rows[0]
-            elif delivery_type == '택배' and len(target_rows) > 1:
-                target_row = target_rows[1]
-            elif delivery_type == '택배' and len(target_rows) == 1:
-                target_row = target_rows[0]
-            else:
-                print(f"{delivery_type} {week}주차 금액구간 업데이트할 행을 찾을 수 없습니다.")
+            # 유효한 범위 체크 (29주차~40주차)
+            if week < 29 or week > 40:
+                print(f"{delivery_type} {week}주차는 범위를 벗어났습니다 (29~40주차만 지원)")
                 continue
 
-            print(f"{delivery_type} {week}주차 금액구간 비중 업데이트 중... (행: {target_row})")
+            print(f"{delivery_type} {week}주차 금액구간 비중 업데이트 중... (열: {target_col})")
 
-            # Q열(17): 15만원미만 비중
-            percentage_15_under = row['15_under_percentage'] if pd.notna(row['15_under_percentage']) else 0
-            worksheet.update_cell(target_row, 17, float(percentage_15_under))
-            time.sleep(1.0)  # API 제한 방지
-
-            # R열(18): 15만원이상 비중
-            percentage_15_up = row['15_up_percentage'] if pd.notna(row['15_up_percentage']) else 0
-            worksheet.update_cell(target_row, 18, float(percentage_15_up))
-            time.sleep(1.0)
-
-            # S열(19): 20만원이상 비중
-            percentage_20_up = row['20_up_percentage'] if pd.notna(row['20_up_percentage']) else 0
-            worksheet.update_cell(target_row, 19, float(percentage_20_up))
-            time.sleep(1.0)
-
-            # T열(20): 25만원이상 비중
-            percentage_25_up = row['25_up_percentage'] if pd.notna(row['25_up_percentage']) else 0
-            worksheet.update_cell(target_row, 20, float(percentage_25_up))
-            time.sleep(1.0)
-
-            # U열(21): 30만원이상 비중
-            percentage_30_up = row['30_up_percentage'] if pd.notna(row['30_up_percentage']) else 0
-            worksheet.update_cell(target_row, 21, float(percentage_30_up))
-            time.sleep(1.0)
+            # 각 BS구간별로 해당 행에 데이터 입력
+            for bs_key, bs_row in bs_rows.items():
+                percentage = row[bs_key] if pd.notna(row[bs_key]) else 0
+                worksheet.update_cell(bs_row, target_col, float(percentage))
+                time.sleep(1.0)
+                print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}%")
 
             print(f"{delivery_type} {week}주차 금액구간 비중 완료!")
 
-    # 직배 데이터 업데이트
+    # 직배 금액구간 비중 업데이트
     if not direct_df.empty:
-        print("\n=== 직배 금액구간 비중 업데이트 ===")
-        update_bs_data(direct_df, '직배')
+        update_bs_data_by_row(direct_df, '직배', direct_bs_rows)
 
-    # 택배 데이터 업데이트
+    # 택배 금액구간 비중 업데이트
     if not parcel_df.empty:
-        print("\n=== 택배 금액구간 비중 업데이트 ===")
-        update_bs_data(parcel_df, '택배')
+        update_bs_data_by_row(parcel_df, '택배', parcel_bs_rows)
 
 
 def update_sheets_business(business_data):
-    """Google Sheets에 업종별 데이터 업데이트 (두 번째 코드에서 가져옴)"""
+    """Google Sheets에 업종별 데이터 업데이트 - 각 업종별 항목의 고정 행에 주차별 열로 입력"""
     # 인증
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = Credentials.from_service_account_file('/Users/sfn/Downloads/automation-data-467003-6310e37f0e5c.json',
@@ -498,70 +461,65 @@ def update_sheets_business(business_data):
     sheet = client.open_by_key('1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE')
     worksheet = sheet.worksheet('automation(주문)')
 
-    def update_business_data(df, business_name, business_index):
-        """업종별 데이터 업데이트"""
+    # 업종별 시작 행 계산 (실제 시트 기준 - 서양식이 114행부터 시작)
+    business_start_rows = [
+        114,  # 서양식·피자·파스타·햄버거 (순매출 행)
+        124,  # 카페·샐러드·샌드위치 (순매출 행)
+        134,  # 한식·분식 (순매출 행)
+        144,  # 베이커리 (순매출 행)
+        154,  # 주점 (순매출 행)
+        164,  # 중식 (순매출 행)
+        174,  # 일식 (순매출 행)
+        184,  # 치킨 (순매출 행)
+        194,  # 뷔페·급식·구내식당 (순매출 행)
+        204  # 아시안 (순매출 행)
+    ]
+
+    def update_business_data_by_row(df, business_name, start_row):
+        """업종별 데이터 업데이트 - 5개 항목만 행별로 주차 데이터를 열에 입력"""
+        print(f"\n=== {business_name} 데이터 업데이트 (시작행: {start_row}) ===")
+
+        # 업종별 항목 행 오프셋 (순매출 행 기준)
+        item_offsets = {
+            'pg_supply_price': 0,  # 순매출 (시작행)
+            'orders': 1,  # 주문수 (+1행)
+            'orders_burial': 2,  # 주문매칭수 (+2행)
+            'first_order_users': 3,  # 신규주문매칭수 (+3행)
+            'orders_sku': 4  # 총품목수량 (+4행)
+        }
+
         for _, row in df.iterrows():
             week = int(row['order_week'])
 
-            # 업종별 시작 행 계산 (55행부터 시작, 각 업종마다 26행씩)
-            business_start_row = 55 + (business_index * 26) + 1  # 헤더 다음 행부터
+            # 29주차부터 시작하여 해당 주차의 열 계산 (B열=2부터 시작)
+            target_col = 2 + (week - 29)
 
-            # 주차에 맞는 행 계산 (29주차가 첫 번째 데이터 행)
-            target_row = business_start_row + (week - 29)
-
-            if target_row < business_start_row or target_row >= business_start_row + 24:
-                print(f"{business_name} {week}주차는 범위를 벗어났습니다.")
+            # 유효한 범위 체크 (29주차~40주차)
+            if week < 29 or week > 40:
+                print(f"{business_name} {week}주차는 범위를 벗어났습니다 (29~40주차만 지원)")
                 continue
 
-            print(f"{business_name} {week}주차 업데이트 중... (행: {target_row})")
+            print(f"{business_name} {week}주차 업데이트 중... (열: {target_col})")
 
-            # C열: 순매출 (pg_supply_price)
-            worksheet.update_cell(target_row, 3, int(row['pg_supply_price']))
-            time.sleep(1.0)  # API 제한 방지
-
-            # D열: 할인금액
-            worksheet.update_cell(target_row, 4, int(row['discount_price']))
-            time.sleep(1.0)
-
-            # E열: 포인트
-            worksheet.update_cell(target_row, 5, int(row['point']))
-            time.sleep(1.0)
-
-            # F열: 쿠폰
-            worksheet.update_cell(target_row, 6, int(row['coupon']))
-            time.sleep(1.0)
-
-            # G열: 배송비
-            worksheet.update_cell(target_row, 7, int(row['delivery_price']))
-            time.sleep(1.0)
-
-            # H열: 주문수
-            worksheet.update_cell(target_row, 8, int(row['orders']))
-            time.sleep(1.0)
-
-            # I열: 주문매칭수
-            worksheet.update_cell(target_row, 9, int(row['orders_burial']))
-            time.sleep(1.0)
-
-            # J열: 신규주문매칭수 (첫구매자)
-            worksheet.update_cell(target_row, 10, int(row['first_order_users']))
-            time.sleep(1.0)
-
-            # K열: 총품목수량
-            worksheet.update_cell(target_row, 11, int(row['orders_sku']))
-            time.sleep(1.0)
+            # 5개 항목만 업데이트
+            for item_key, offset in item_offsets.items():
+                item_row = start_row + offset
+                value = int(row[item_key])
+                worksheet.update_cell(item_row, target_col, value)
+                time.sleep(1.0)
+                print(f"  {item_key}: 행{item_row}, 열{target_col} = {value}")
 
             print(f"{business_name} {week}주차 완료!")
 
-    # 업종별 데이터 업데이트 (순서대로)
+    # 업종별 데이터 업데이트
     for business_index, business_name in enumerate(BUSINESS_ORDER):
         if business_name in business_data and not business_data[business_name].empty:
-            print(f"\n=== {business_name} 데이터 업데이트 ===")
-            update_business_data(business_data[business_name], business_name, business_index)
+            start_row = business_start_rows[business_index]
+            update_business_data_by_row(business_data[business_name], business_name, start_row)
 
 
 def main():
-    """기존 데이터 + 금액구간 비중 데이터 + 업종별 데이터 모두 업데이트"""
+    """모든 데이터 업데이트"""
     print("주차별 직배/택배 + 업종별 데이터 업데이트 시작...")
 
     # 1. 기존 데이터 조회 및 업데이트
@@ -574,7 +532,7 @@ def main():
     print(f"금액구간 데이터 - 직배: {len(bs_direct_df)}개 주차, 택배: {len(bs_parcel_df)}개 주차 조회 완료")
     update_bs_segment_sheets(bs_direct_df, bs_parcel_df)
 
-    # 3. 업종별 데이터 조회 및 업데이트 (두 번째 코드에서 가져온 부분)
+    # 3. 업종별 데이터 조회 및 업데이트
     business_data = get_weekly_data_business()
     total_businesses = sum(1 for df in business_data.values() if not df.empty)
     print(f"업종별 데이터 - {total_businesses}개 업종 데이터 조회 완료")
