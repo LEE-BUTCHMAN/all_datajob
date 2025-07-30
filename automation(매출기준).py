@@ -92,7 +92,7 @@ inner join cancun.`user` u on u.base_user_id = s.user_id
 inner join cancun.base_user bu on bu.id = u.base_user_id
 where si.is_deleted = 0
 and substr(s.order_dated_at,1,10) >= '2025-06-01'
-and substr(s.order_dated_at,1,10) <= '2025-07-20'
+and substr(s.order_dated_at,1,10) <= '2025-07-27'
 group by 1,2,3,4,5"""
 
     df = pd.read_sql(query, connection)
@@ -187,7 +187,7 @@ def get_bs_segment_data():
                   and si.item_status in ('ORDER')
                   and s.status in ('SHIPPING', 'SHIPPING_COMPLETE', 'READY_SHIPMENT')
                   and substr(s.order_dated_at, 1, 10) >= '2025-06-01'
-                  and substr(s.order_dated_at, 1, 10) <= '2025-07-20'
+                  and substr(s.order_dated_at, 1, 10) <= '2025-07-27'
                 group by 1, 2, 3, 4
             ) A
             group by 1, 2, 3, 4
@@ -281,7 +281,7 @@ def get_weekly_data_business():
                inner join cancun.business_type bt on bt.id = ubtc.business_type_codes
                where si.is_deleted = 0
                and substr(s.order_dated_at,1,10) >= '2025-06-01'
-               and substr(s.order_dated_at,1,10) <= '2025-07-20'
+               and substr(s.order_dated_at,1,10) <= '2025-07-27'
                group by 1,2,3,4,5,6"""
 
     df = pd.read_sql(query, connection)
@@ -312,18 +312,21 @@ def get_weekly_data_business():
 
     return business_data
 
+# 업데이트할 주차 설정 (여기만 바꾸면 모든 함수에 적용됨)
+TARGET_WEEK = 30  # 29주차 업데이트
+
 
 def update_delivery_data_by_row(df, delivery_type, item_rows, worksheet):
-    """배송 유형별 데이터 업데이트 - 29주차 데이터만 B열에 입력"""
+    """배송 유형별 데이터 업데이트 - 설정된 주차를 해당 열에 입력"""
     print(f"\n=== {delivery_type} 데이터 업데이트 ===")
 
-    # 29주차 고정, B열(2번째 열)에 업데이트
-    target_week = 29
-    target_col = 2  # B열
+    # 주차별 열 매핑: 29주차=B열(2), 30주차=C열(3), 31주차=D열(4)...
+    target_week = TARGET_WEEK
+    target_col = 2 + (target_week - 29)  # 29주차부터 시작하여 B열부터 매핑
 
-    print(f"{delivery_type} {target_week}주차를 B열에 업데이트합니다.")
+    print(f"{delivery_type} {target_week}주차를 {chr(64 + target_col)}열에 업데이트합니다.")
 
-    # 29주차 데이터만 찾기
+    # 해당 주차 데이터만 찾기
     target_week_data = df[df['entering_week'] == target_week]
 
     if target_week_data.empty:
@@ -342,11 +345,11 @@ def update_delivery_data_by_row(df, delivery_type, item_rows, worksheet):
                 print(f"  {item_key}: 행{item_row}, 열{target_col} = {value}")
 
         print(f"{delivery_type} {target_week}주차 완료!")
-        break  # 29주차는 하나만 있으므로 break
+        break  # 해당 주차는 하나만 있으므로 break
 
 
 def update_sheets(direct_df, parcel_df):
-    """Google Sheets에 직배/택배 데이터 업데이트 - 29주차 데이터만 B열에 업데이트"""
+    """Google Sheets에 직배/택배 데이터 업데이트 - 설정된 주차를 해당 열에 업데이트"""
     # 인증
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = Credentials.from_service_account_file('/Users/sfn/Downloads/automation-data-467003-6310e37f0e5c.json',
@@ -393,7 +396,7 @@ def update_sheets(direct_df, parcel_df):
 
 
 def update_bs_segment_sheets(direct_df, parcel_df):
-    """Google Sheets에 금액 구간별 비중 데이터 업데이트 - 29주차 데이터만 B열에 업데이트"""
+    """Google Sheets에 금액 구간별 비중 데이터 업데이트 - 설정된 주차를 해당 열에 업데이트"""
     # 인증
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = Credentials.from_service_account_file('/Users/sfn/Downloads/automation-data-467003-6310e37f0e5c.json',
@@ -423,16 +426,16 @@ def update_bs_segment_sheets(direct_df, parcel_df):
     }
 
     def update_bs_data_by_row(df, delivery_type, bs_rows):
-        """배송 유형별 금액 구간 비중 데이터 업데이트 - 29주차 데이터만 B열에 입력"""
+        """배송 유형별 금액 구간 비중 데이터 업데이트 - 설정된 주차를 해당 열에 입력"""
         print(f"\n=== {delivery_type} 금액구간 비중 업데이트 ===")
 
-        # 29주차 고정, B열(2번째 열)에 업데이트
-        target_week = 29
-        target_col = 2  # B열
+        # 주차별 열 매핑: 29주차=B열(2), 30주차=C열(3), 31주차=D열(4)...
+        target_week = TARGET_WEEK
+        target_col = 2 + (target_week - 29)  # 29주차부터 시작하여 B열부터 매핑
 
-        print(f"{delivery_type} {target_week}주차를 B열에 업데이트합니다.")
+        print(f"{delivery_type} {target_week}주차를 {chr(64 + target_col)}열에 업데이트합니다.")
 
-        # 29주차 데이터만 찾기
+        # 해당 주차 데이터만 찾기
         target_week_data = df[df['entering_week'] == target_week]
 
         if target_week_data.empty:
@@ -451,7 +454,7 @@ def update_bs_segment_sheets(direct_df, parcel_df):
                     print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}%")
 
             print(f"{delivery_type} {target_week}주차 금액구간 비중 완료!")
-            break  # 29주차는 하나만 있으므로 break
+            break  # 해당 주차는 하나만 있으므로 break
 
     # 직배 금액구간 비중 업데이트
     if not direct_df.empty:
@@ -463,7 +466,7 @@ def update_bs_segment_sheets(direct_df, parcel_df):
 
 
 def update_sheets_business(business_data):
-    """Google Sheets에 업종별 데이터 업데이트 - 29주차 데이터만 B열에 업데이트"""
+    """Google Sheets에 업종별 데이터 업데이트 - 설정된 주차를 해당 열에 업데이트"""
     # 인증
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
     creds = Credentials.from_service_account_file('/Users/sfn/Downloads/automation-data-467003-6310e37f0e5c.json',
@@ -489,14 +492,14 @@ def update_sheets_business(business_data):
     ]
 
     def update_business_data_by_row(df, business_name, start_row):
-        """업종별 데이터 업데이트 - 29주차 데이터만 B열에 입력"""
+        """업종별 데이터 업데이트 - 설정된 주차를 해당 열에 입력"""
         print(f"\n=== {business_name} 데이터 업데이트 (시작행: {start_row}) ===")
 
-        # 29주차 고정, B열(2번째 열)에 업데이트
-        target_week = 29
-        target_col = 2  # B열
+        # 주차별 열 매핑: 29주차=B열(2), 30주차=C열(3), 31주차=D열(4)...
+        target_week = TARGET_WEEK
+        target_col = 2 + (target_week - 29)  # 29주차부터 시작하여 B열부터 매핑
 
-        print(f"{business_name} {target_week}주차를 B열에 업데이트합니다.")
+        print(f"{business_name} {target_week}주차를 {chr(64 + target_col)}열에 업데이트합니다.")
 
         # 업종별 항목 행 오프셋 (순매출 행 기준)
         item_offsets = {
@@ -507,7 +510,7 @@ def update_sheets_business(business_data):
             'orders_sku': 4  # 총품목수량 (+4행)
         }
 
-        # 29주차 데이터만 찾기
+        # 해당 주차 데이터만 찾기
         target_week_data = df[df['entering_week'] == target_week]
 
         if target_week_data.empty:
@@ -527,7 +530,7 @@ def update_sheets_business(business_data):
                     print(f"  {item_key}: 행{item_row}, 열{target_col} = {value}")
 
             print(f"{business_name} {target_week}주차 완료!")
-            break  # 29주차는 하나만 있으므로 break
+            break  # 해당 주차는 하나만 있으므로 break
 
     # 업종별 데이터 업데이트
     for business_index, business_name in enumerate(BUSINESS_ORDER):
@@ -537,8 +540,8 @@ def update_sheets_business(business_data):
 
 
 def main():
-    """모든 데이터 업데이트 - 29주차 데이터만 B열에 업데이트"""
-    print("29주차 직배/택배 + 업종별 데이터 B열 업데이트 시작...")
+    """모든 데이터 업데이트 - 설정된 주차를 해당 열에 업데이트"""
+    print(f"{TARGET_WEEK}주차 직배/택배 + 업종별 데이터 {chr(64 + 2 + (TARGET_WEEK - 29))}열 업데이트 시작...")
 
     # 1. 기존 데이터 조회 및 업데이트
     direct_df, parcel_df = get_weekly_data()
@@ -556,7 +559,7 @@ def main():
     print(f"업종별 데이터 - {total_businesses}개 업종 데이터 조회 완료")
     update_sheets_business(business_data)
 
-    print("29주차 B열 업데이트 완료!")
+    print(f"{TARGET_WEEK}주차 {chr(64 + 2 + (TARGET_WEEK - 29))}열 업데이트 완료!")
 
 
 if __name__ == "__main__":
