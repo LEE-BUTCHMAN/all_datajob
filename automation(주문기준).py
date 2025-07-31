@@ -376,7 +376,7 @@ def get_total_bs_segment_data():
     return df
 
 # 업데이트할 주차 설정 (여기만 바꾸면 모든 함수에 적용됨)
-TARGET_WEEK = 30  # 29주차 업데이트
+TARGET_WEEK = 30  # 주차 업데이트
 
 
 def update_delivery_data_by_row(df, delivery_type, item_rows, worksheet):
@@ -537,7 +537,7 @@ def update_total_bs_segment_sheets(total_bs_df):
 
     # 시트 열기
     sheet = client.open_by_key('1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE')
-    worksheet = sheet.worksheet('automation(매출)')  # 시트명 수정
+    worksheet = sheet.worksheet('automation(주문)')  # 시트명 수정
 
     # 전체 BS구간별 행 번호 (98~102행)
     total_bs_rows = {
@@ -557,7 +557,7 @@ def update_total_bs_segment_sheets(total_bs_df):
     print(f"전체 {target_week}주차를 {chr(64 + target_col)}열에 업데이트합니다.")
 
     # 해당 주차 데이터만 찾기
-    target_week_data = total_bs_df[total_bs_df['entering_week'] == target_week]
+    target_week_data = total_bs_df[total_bs_df['order_week'] == target_week]
 
     if target_week_data.empty:
         print(f"전체 {target_week}주차 금액구간 데이터가 없습니다.")
