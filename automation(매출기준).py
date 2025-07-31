@@ -312,6 +312,71 @@ def get_weekly_data_business():
 
     return business_data
 
+def get_total_bs_segment_data():
+    """직배+택배 합계 금액 구간 비중 데이터 조회 (새로운 쿼리)"""
+    connection = pymysql.connect(
+        host='prod-common-db.cluster-ro-ch624l3cypvt.ap-northeast-2.rds.amazonaws.com',
+        user='cancun_data',
+        password='#ZXsd@~H>)2>',
+        database='cancun',
+        port=3306,
+        charset='utf8mb4'
+    )
+
+    query = """
+            select entering_year,
+           entering_week,
+           max(case when bs_seg = '15만_under' then percentage else null end) as '15_under_percentage',
+           max(case when bs_seg = '15만_up' then percentage else null end) as '15_up_percentage',
+           max(case when bs_seg = '20만_up' then percentage else null end) as '20_up_percentage',
+           max(case when bs_seg = '25만_up' then percentage else null end) as '25_up_percentage',
+           max(case when bs_seg = '30만_up' then percentage else null end) as '30_up_percentage'
+    from (
+        select entering_year,
+               entering_week,
+               bs_seg,
+               cnt,
+               ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_week), 2) as percentage,
+               SUM(cnt) OVER (PARTITION BY entering_year, entering_week) as total_orders
+        from (
+            select entering_year,
+                   entering_week,
+                   case
+                       when total >= 100000 and total < 150000 then '15만_under'
+                       when total >= 150000 and total < 200000 then '15만_up'
+                       when total >= 200000 and total < 250000 then '20만_up'
+                       when total >= 250000 and total < 300000 then '25만_up'
+                       when total >= 300000 then '30만_up'
+                       else '10만_under' end as bs_seg,
+                   count(distinct order_number) as cnt
+            from (
+                select year(substr(si.entering_dated_at, 1, 10)) as entering_year,
+                       week(substr(si.entering_dated_at, 1, 10),1) as entering_week,
+                       s.order_number,
+                       sum(IF(si.tax_type = 'TAX',
+                              CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) + si.price * si.quantity -
+                              CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED),
+                              CAST(ROUND(si.price * si.quantity, 0) AS SIGNED))) as total
+                from cancun.shipment_item si
+                inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
+                where si.is_deleted = 0
+                  and si.item_status in ('ORDER')
+                  and s.status in ('SHIPPING', 'SHIPPING_COMPLETE', 'READY_SHIPMENT')
+                  and substr(s.order_dated_at, 1, 10) >= '2025-06-01'
+                  and substr(s.order_dated_at, 1, 10) <= '2025-08-03'
+                group by 1, 2, 3
+            ) A
+            group by 1, 2, 3
+        ) B
+    ) C
+    group by 1, 2
+    """
+
+    df = pd.read_sql(query, connection)
+    connection.close()
+
+    return df
+
 # 업데이트할 주차 설정 (여기만 바꾸면 모든 함수에 적용됨)
 TARGET_WEEK = 30  # 29주차 업데이트
 
@@ -465,6 +530,58 @@ def update_bs_segment_sheets(direct_df, parcel_df):
         update_bs_data_by_row(parcel_df, '택배', parcel_bs_rows)
 
 
+def update_total_bs_segment_sheets(total_bs_df):
+    """Google Sheets에 전체(직배+택배) 금액 구간별 비중 데이터 업데이트 - 98~102행"""
+    # 인증
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = Credentials.from_service_account_file('/Users/sfn/Downloads/automation-data-467003-6310e37f0e5c.json',
+                                                  scopes=scope)
+    client = gspread.authorize(creds)
+
+    # 시트 열기
+    sheet = client.open_by_key('1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE')
+    worksheet = sheet.worksheet('automation(매출)')  # 시트명 수정
+
+    # 전체 BS구간별 행 번호 (98~102행)
+    total_bs_rows = {
+        '15_under_percentage': 98,  # 15만 미만(%)
+        '15_up_percentage': 99,     # 15만 이상(%)
+        '20_up_percentage': 100,    # 20만 이상(%)
+        '25_up_percentage': 101,    # 25만 이상(%)
+        '30_up_percentage': 102     # 30만 이상(%)
+    }
+
+    print(f"\n=== 전체(직배+택배) 금액구간 비중 업데이트 ===")
+
+    # 주차별 열 매핑: 29주차=B열(2), 30주차=C열(3), 31주차=D열(4)...
+    target_week = TARGET_WEEK
+    target_col = 2 + (target_week - 29)  # 29주차부터 시작하여 B열부터 매핑
+
+    print(f"전체 {target_week}주차를 {chr(64 + target_col)}열에 업데이트합니다.")
+
+    # 해당 주차 데이터만 찾기
+    target_week_data = total_bs_df[total_bs_df['entering_week'] == target_week]
+
+    if target_week_data.empty:
+        print(f"전체 {target_week}주차 금액구간 데이터가 없습니다.")
+        return
+
+    # 해당 주차 데이터 사용 (직배+택배 합계 결과)
+    for _, row in target_week_data.iterrows():
+        print(f"전체 {target_week}주차 금액구간 비중 업데이트 중... (열: {target_col})")
+
+        # 각 BS구간별로 해당 행에 데이터 입력
+        for bs_key, bs_row in total_bs_rows.items():
+            if bs_key in row:
+                percentage = row[bs_key] if pd.notna(row[bs_key]) else 0
+                worksheet.update_cell(bs_row, target_col, float(percentage))
+                time.sleep(1.0)
+                print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}%")
+
+        print(f"전체 {target_week}주차 금액구간 비중 완료!")
+        break
+
+
 def update_sheets_business(business_data):
     """Google Sheets에 업종별 데이터 업데이트 - 설정된 주차를 해당 열에 업데이트"""
     # 인증
@@ -558,6 +675,11 @@ def main():
     total_businesses = sum(1 for df in business_data.values() if not df.empty)
     print(f"업종별 데이터 - {total_businesses}개 업종 데이터 조회 완료")
     update_sheets_business(business_data)
+
+    # 4. 전체(직배+택배) 금액구간 비중 데이터 조회 및 업데이트 (98~102행)
+    total_bs_df = get_total_bs_segment_data()
+    print(f"전체 금액구간 데이터 - {len(total_bs_df)}개 월 조회 완료")
+    update_total_bs_segment_sheets(total_bs_df)
 
     print(f"{TARGET_WEEK}주차 {chr(64 + 2 + (TARGET_WEEK - 29))}열 업데이트 완료!")
 
