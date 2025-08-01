@@ -32,8 +32,8 @@ def get_weekly_signup_data():
                 CASE WHEN u.recommender_username IS NULL OR u.recommender_username = '' THEN '-'
                 WHEN u.recommender_username REGEXP '^#' THEN '오프라인'
                 WHEN u.recommender_username REGEXP '^[a-zA-Z0-9]+$' THEN '친구추천'
-                ELSE '-' 
-            END 
+                ELSE '-'
+            END
             AS recommender_type,
         COUNT(*) as signup_count
     FROM cancun.base_user bu
@@ -50,6 +50,38 @@ def get_weekly_signup_data():
     if not df.empty:
         print(f"🔍 주차 범위: {df['signup_week'].min()}주차 ~ {df['signup_week'].max()}주차")
         print(f"🔍 추천타입: {df['recommender_type'].unique().tolist()}")
+
+    return df
+
+
+def get_weekly_new_users_data():
+    """dashboard_user 테이블에서 주차별 신규 가입자 수 조회"""
+    connection = pymysql.connect(
+        host='prod-common-db.cluster-ro-ch624l3cypvt.ap-northeast-2.rds.amazonaws.com',
+        user='cancun_data',
+        password='#ZXsd@~H>)2>',
+        database='cancun',
+        port=3306,
+        charset='utf8mb4'
+    )
+
+    query = """
+            SELECT
+                year (substr(period_date, 1, 10)) as signup_year, 
+                week(substr(period_date, 1, 10), 1) as signup_week, 
+                sum(new_count) as new_signups_users
+            FROM cancun.dashboard_user
+            WHERE period_type = 'DAILY'
+            GROUP BY 1, 2
+            ORDER BY 1, 2
+            """
+
+    df = pd.read_sql(query, connection)
+    connection.close()
+
+    print(f"🔍 신규 가입자 데이터 조회 완료: {len(df)}행")
+    if not df.empty:
+        print(f"🔍 주차 범위: {df['signup_week'].min()}주차 ~ {df['signup_week'].max()}주차")
 
     return df
 
@@ -71,14 +103,14 @@ def get_monthly_signup_data():
                 WHEN u.recommender_username REGEXP '^#' THEN '오프라인'
                 WHEN u.recommender_username REGEXP '^[a-zA-Z0-9]+$' THEN '친구추천'
                 ELSE '-'
-            END \
+            END
             AS recommender_type,
                 COUNT(*) as signup_count
             FROM cancun.base_user bu
             INNER JOIN cancun.user u ON u.base_user_id = bu.id
             WHERE u.deleted_yn = 'n'
             GROUP BY 1, 2, 3
-            ORDER BY 1, 2, 3 \
+            ORDER BY 1, 2, 3 
             """
 
     df = pd.read_sql(query, connection)
@@ -92,7 +124,7 @@ def get_monthly_signup_data():
     return df
 
 
-def update_signup_sheets(signup_df):
+def update_signup_sheets(signup_df, new_users_df=None):
     """Google Sheets에 회원가입 데이터 업데이트 - 추천타입별로 8행(친구추천), 9행(오프라인)"""
     # 인증
     scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
@@ -143,6 +175,21 @@ def update_signup_sheets(signup_df):
             print(f"  ⚠️ {recommender_type}: 매핑되지 않은 추천타입 (값: {signup_count})")
 
     print(f"🎉 회원가입 {target_week}주차 업데이트 완료! ({updated_count}개 타입 업데이트)")
+
+    # === 6행 신규 가입자 업데이트 추가 ===
+    if new_users_df is not None:
+        target_week_new_users = new_users_df[
+            (new_users_df['signup_week'] == target_week) &
+            (new_users_df['signup_year'] == 2025)
+            ]
+
+        if not target_week_new_users.empty:
+            new_users_count = int(target_week_new_users['new_signups_users'].iloc[0])
+            worksheet.update_cell(6, target_col, new_users_count)  # 6행에 업데이트
+            time.sleep(1.0)
+            print(f"  ✅ 신규 가입자: 행6, 열{target_col} = {new_users_count}명")
+        else:
+            print(f"  ⚠️ {target_week}주차 신규 가입자 데이터가 없습니다.")
 
 
 def update_monthly_signup_sheets(signup_df):
@@ -205,18 +252,21 @@ def main_weekly():
     """회원가입 데이터 주차별 업데이트"""
     print(f"🚀 {TARGET_WEEK}주차 회원가입 데이터 업데이트 시작...")
     print(f"📅 매핑: 29주차=B열, 30주차=C열, 31주차=D열...")
-    print(f"📍 대상: 8행(친구추천), 9행(오프라인)")
+    print(f"📍 대상: 6행(신규가입자), 8행(친구추천), 9행(오프라인)")
 
     try:
         # 1. 회원가입 데이터 조회
         signup_df = get_weekly_signup_data()
+
+        # 1-1. 신규 가입자 데이터 조회
+        new_users_df = get_weekly_new_users_data()
 
         if signup_df.empty:
             print("❌ 조회된 회원가입 데이터가 없습니다.")
             return
 
         # 2. Google Sheets 업데이트
-        update_signup_sheets(signup_df)
+        update_signup_sheets(signup_df, new_users_df)
 
         print(f"\n🎊 {TARGET_WEEK}주차 회원가입 데이터 업데이트 완료!")
         print(f"✨ {chr(64 + 2 + (TARGET_WEEK - 29))}열에 데이터가 업데이트되었습니다.")
