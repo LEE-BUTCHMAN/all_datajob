@@ -313,9 +313,9 @@ def update_ad_data_to_sheets_monthly(df):
 
     print(f"\n=== 광고 데이터 월별 업데이트 ===")
 
-    # 월별 열 매핑: 1월=B열(2), 2월=C열(3), 3월=D열(4)...
+    # 월별 열 매핑: 7월=B열(2), 8월=C열(3), 9월=D열(4)...
     target_month = TARGET_MONTH
-    target_col = 2 + (target_month - 1)  # 1월부터 시작하여 B열부터 매핑
+    target_col = 2 + (target_month - 7)  # 7월부터 시작하여 B열부터 매핑
 
     print(f"광고 데이터 {target_month}월을 {chr(64 + target_col)}열에 업데이트합니다.")
 
