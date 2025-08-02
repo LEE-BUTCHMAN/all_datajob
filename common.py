@@ -12,7 +12,7 @@ warnings.filterwarnings('ignore')
 TARGET_MONTH = 7  # 월 업데이트
 
 # 업데이트할 주차 설정 (여기만 바꾸면 모든 함수에 적용됨)
-TARGET_WEEK = 29  # 주차 업데이트 (1-12)
+TARGET_WEEK = 30  # 주차 업데이트 (1-12)
 
 
 def get_weekly_signup_data():

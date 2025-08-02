@@ -37,7 +37,7 @@ def get_point_ratio_data():
             when reason in ('친구추천(추천인)', '친구추천(신규회원)') then '친구추천'
             else reason
         end as 사유,
-        sum(round(amount  / total_amount, 4)) as 비중
+        sum(round(amount  / total_amount, 2)) as 비중
     from (
         select reason,
                sum(amount) as amount,
@@ -118,7 +118,7 @@ def get_monthly_point_ratio_data():
             when reason in ('친구추천(추천인)', '친구추천(신규회원)') then '친구추천'
             else reason
         end as 사유,
-        sum(round(amount / total_amount, 4)) as 비중
+        sum(round(amount / total_amount, 2)) as 비중
     from (
         select reason,
                sum(amount) as amount,

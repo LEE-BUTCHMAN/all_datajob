@@ -90,7 +90,7 @@ inner join cancun.`user` u on u.base_user_id = s.user_id
 inner join cancun.base_user bu on bu.id = u.base_user_id
 where si.is_deleted = 0
 and substr(s.order_dated_at,1,10) >= '2025-06-01'
-and substr(s.order_dated_at,1,10) <= '2025-07-27'
+and substr(s.order_dated_at,1,10) <= '2025-08-03'
 group by 1,2,3,4,5"""
 
     df = pd.read_sql(query, connection)
@@ -185,7 +185,7 @@ def get_bs_segment_data():
                   and si.item_status in ('ORDER')
                   and s.status in ('PAYMENT', 'SHIPPING', 'SHIPPING_COMPLETE', 'READY_SHIPMENT')
                   and substr(s.order_dated_at, 1, 10) >= '2025-06-01'
-                  and substr(s.order_dated_at, 1, 10) <= '2025-07-27'
+                  and substr(s.order_dated_at, 1, 10) <= '2025-08-03'
                 group by 1, 2, 3, 4
             ) A
             group by 1, 2, 3, 4
@@ -279,7 +279,7 @@ def get_weekly_data_business():
                inner join cancun.business_type bt on bt.id = ubtc.business_type_codes
                where si.is_deleted = 0
                and substr(s.order_dated_at,1,10) >= '2025-06-01'
-               and substr(s.order_dated_at,1,10) <= '2025-07-27'
+               and substr(s.order_dated_at,1,10) <= '2025-08-03'
                group by 1,2,3,4,5,6"""
 
     df = pd.read_sql(query, connection)

@@ -17,6 +17,18 @@ except ImportError:
     ps = None
 
 
+def get_week_dates(week_number):
+    """주차별 날짜 범위 반환"""
+    week_dates = {
+        29: ('2025-07-14', '2025-07-20'),
+        30: ('2025-07-21', '2025-07-27'),
+        31: ('2025-07-28', '2025-08-03'),
+        32: ('2025-08-04', '2025-08-10'),
+        # 필요한 주차 계속 추가...
+    }
+    return week_dates.get(week_number, (None, None))
+
+
 def get_new_headers():
     """새로운 헤더 정의 (date 컬럼 + 카테고리별 지표) - 영어 버전"""
     headers = ['date']  # 첫 번째 컬럼
@@ -147,7 +159,7 @@ def copy_raw_to_ad_sheet():
             time.sleep(1)  # API 제한 방지
 
             # 새 데이터 업로드
-            target_worksheet.update(values=all_data, range_name='A1')
+            target_worksheet.update(values=all_data, range_name='A1', value_input_option='RAW')
             print("✅ 데이터 업로드 완료!")
 
         return True
@@ -238,10 +250,10 @@ def update_ad_data_to_sheets(df):
 
     print(f"광고 데이터 {target_week}주차를 {chr(64 + target_col)}열에 업데이트합니다.")
 
-    # 해당 주차에 해당하는 날짜 범위 계산 (2025년 기준)
-    # 30주차는 대략 7월 21일 ~ 7월 27일
-    week_start = '2025-07-21'
-    week_end = '2025-07-27'
+    week_start, week_end = get_week_dates(target_week)
+    if week_start is None:
+        print(f"❌ {target_week}주차 날짜 정보가 없습니다.")
+        return
 
     # 해당 주차 데이터 필터링
     target_week_data = df[(df['date'] >= week_start) & (df['date'] <= week_end)]
