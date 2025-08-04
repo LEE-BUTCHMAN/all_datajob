@@ -4,10 +4,10 @@ import pandas as pd
 import time
 
 # 업데이트할 주차 설정
-TARGET_WEEK = 30  # 30주차 데이터 업데이트
+TARGET_WEEK = 31  # 30주차 데이터 업데이트
 
 # 업데이트할 월 설정
-TARGET_MONTH = 7  # 7월 데이터 업데이트
+TARGET_MONTH = 8  # 7월 데이터 업데이트
 
 # pandasql 라이브러리 로드
 try:
@@ -66,7 +66,7 @@ def copy_raw_to_ad_sheet():
     client = gspread.authorize(creds)
 
     # 시트 ID
-    source_sheet_id = '1W6y0CC-ENTdN1lqDY32Dh0FnieMXGDmavLX64w17nzk'  # 원본
+    source_sheet_id = '1QQ1SitJ3kSavF71xAIADmKrkt01IECP5zSY8hxVX_A8'  # 원본
     target_sheet_id = '1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE'  # 타겟
 
     try:

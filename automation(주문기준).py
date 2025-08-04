@@ -376,7 +376,7 @@ def get_total_bs_segment_data():
     return df
 
 # 업데이트할 주차 설정 (여기만 바꾸면 모든 함수에 적용됨)
-TARGET_WEEK = 30  # 주차 업데이트
+TARGET_WEEK = 31  # 주차 업데이트
 
 
 def update_delivery_data_by_row(df, delivery_type, item_rows, worksheet):
