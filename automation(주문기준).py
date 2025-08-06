@@ -143,55 +143,59 @@ def get_bs_segment_data():
 
     query = """
             select order_year,
+       order_week,
+       delivery_type,
+       max(case when bs_seg = '15만_under' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_under_percentage',
+       max(case when bs_seg = '15만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_up_percentage',
+       max(case when bs_seg = '20만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '20_up_percentage',
+       max(case when bs_seg = '25만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '25_up_percentage',
+       max(case when bs_seg = '30만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '30_up_percentage'
+from (
+    select order_year,
            order_week,
            delivery_type,
-           max(case when bs_seg = '15만_under' then percentage else null end) as '15_under_percentage',
-           max(case when bs_seg = '15만_up' then percentage else null end) as '15_up_percentage',
-           max(case when bs_seg = '20만_up' then percentage else null end) as '20_up_percentage',
-           max(case when bs_seg = '25만_up' then percentage else null end) as '25_up_percentage',
-           max(case when bs_seg = '30만_up' then percentage else null end) as '30_up_percentage'
+           bs_seg,
+           cnt,
+           total,
+           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY order_year, order_week), 2) as percentage,
+           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY order_year, order_week), 2) as percentage1,
+           SUM(cnt) OVER (PARTITION BY order_year, order_week) as total_orders,
+           SUM(total) OVER (PARTITION BY order_year, order_week) as total_amount
     from (
         select order_year,
                order_week,
                delivery_type,
-               bs_seg,
-               cnt,
-               ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY order_year, order_week), 2) as percentage,
-               SUM(cnt) OVER (PARTITION BY order_year, order_week) as total_orders
+               case
+                   when total >= 100000 and total < 150000 then '15만_under'
+                   when total >= 150000 and total < 200000 then '15만_up'
+                   when total >= 200000 and total < 250000 then '20만_up'
+                   when total >= 250000 and total < 300000 then '25만_up'
+                   when total >= 300000 then '30만_up'
+                   else '10만_under' end as bs_seg,
+               count(distinct order_number) as cnt,
+               sum(total) as total
         from (
-            select order_year,
-                   order_week,
-                   delivery_type,
-                   case
-                       when total >= 100000 and total < 150000 then '15만_under'
-                       when total >= 150000 and total < 200000 then '15만_up'
-                       when total >= 200000 and total < 250000 then '20만_up'
-                       when total >= 250000 and total < 300000 then '25만_up'
-                       when total >= 300000 then '30만_up'
-                       else '10만_under' end as bs_seg,
-                   count(distinct order_number) as cnt
-            from (
-                select year(substr(s.order_dated_at, 1, 10)) as order_year,
-                       week(substr(s.order_dated_at, 1, 10), 1) as order_week,
-                       s.order_number,
-                       CASE WHEN s.courier = 'SFN' THEN '직배' ELSE '택배' END as delivery_type,
-                       sum(IF(si.tax_type = 'TAX',
-                              CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) + si.price * si.quantity -
-                              CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED),
-                              CAST(ROUND(si.price * si.quantity, 0) AS SIGNED))) as total
-                from cancun.shipment_item si
-                inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
-                where si.is_deleted = 0
-                  and si.item_status in ('ORDER')
-                  and s.status in ('PAYMENT', 'SHIPPING', 'SHIPPING_COMPLETE', 'READY_SHIPMENT')
-                  and substr(s.order_dated_at, 1, 10) >= '2025-06-01'
-                  and substr(s.order_dated_at, 1, 10) <= '2025-08-03'
-                group by 1, 2, 3, 4
-            ) A
+            select year(substr(s.order_dated_at, 1, 10)) as order_year,
+                   week(substr(s.order_dated_at, 1, 10), 1) as order_week,
+                   s.order_number,
+                   CASE WHEN s.courier = 'SFN' THEN '직배' ELSE '택배' END as delivery_type,
+                   sum(IF(si.tax_type = 'TAX',
+                          CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) + si.price * si.quantity -
+                          CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED),
+                          CAST(ROUND(si.price * si.quantity, 0) AS SIGNED))) as total
+            from cancun.shipment_item si
+            inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
+            where si.is_deleted = 0
+              and si.item_status in ('ORDER')
+              and s.status in ('PAYMENT', 'SHIPPING', 'SHIPPING_COMPLETE', 'READY_SHIPMENT')
+              and substr(s.order_dated_at, 1, 10) >= '2025-06-01'
+              and substr(s.order_dated_at, 1, 10) <= '2025-08-03'
             group by 1, 2, 3, 4
-        ) B
-    ) C
-    group by 1, 2, 3
+        ) A
+        group by 1, 2, 3, 4
+    ) B
+) C
+group by 1, 2, 3
     """
 
     df = pd.read_sql(query, connection)
@@ -323,51 +327,55 @@ def get_total_bs_segment_data():
 
     query = """
             select order_year,
+       order_week,
+       max(case when bs_seg = '15만_under' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_under_percentage',
+       max(case when bs_seg = '15만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_up_percentage',
+       max(case when bs_seg = '20만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '20_up_percentage',
+       max(case when bs_seg = '25만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '25_up_percentage',
+       max(case when bs_seg = '30만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '30_up_percentage'
+from (
+    select order_year,
            order_week,
-           max(case when bs_seg = '15만_under' then percentage else null end) as '15_under_percentage',
-           max(case when bs_seg = '15만_up' then percentage else null end) as '15_up_percentage',
-           max(case when bs_seg = '20만_up' then percentage else null end) as '20_up_percentage',
-           max(case when bs_seg = '25만_up' then percentage else null end) as '25_up_percentage',
-           max(case when bs_seg = '30만_up' then percentage else null end) as '30_up_percentage'
+           bs_seg,
+           cnt,
+           total,
+           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY order_year, order_week), 2) as percentage,
+           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY order_year, order_week), 2) as percentage1,
+           SUM(cnt) OVER (PARTITION BY order_year, order_week) as total_orders,
+           SUM(total) OVER (PARTITION BY order_year, order_week) as total_amount
     from (
         select order_year,
                order_week,
-               bs_seg,
-               cnt,
-               ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY order_year, order_week), 2) as percentage,
-               SUM(cnt) OVER (PARTITION BY order_year, order_week) as total_orders
+               case
+                   when total >= 100000 and total < 150000 then '15만_under'
+                   when total >= 150000 and total < 200000 then '15만_up'
+                   when total >= 200000 and total < 250000 then '20만_up'
+                   when total >= 250000 and total < 300000 then '25만_up'
+                   when total >= 300000 then '30만_up'
+                   else '10만_under' end as bs_seg,
+               count(distinct order_number) as cnt,
+               sum(total) as total
         from (
-            select order_year,
-                   order_week,
-                   case
-                       when total >= 100000 and total < 150000 then '15만_under'
-                       when total >= 150000 and total < 200000 then '15만_up'
-                       when total >= 200000 and total < 250000 then '20만_up'
-                       when total >= 250000 and total < 300000 then '25만_up'
-                       when total >= 300000 then '30만_up'
-                       else '10만_under' end as bs_seg,
-                   count(distinct order_number) as cnt
-            from (
-                select year(substr(s.order_dated_at, 1, 10)) as order_year,
-                       week(substr(s.order_dated_at, 1, 10),1) as order_week,
-                       s.order_number,
-                       sum(IF(si.tax_type = 'TAX',
-                              CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) + si.price * si.quantity -
-                              CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED),
-                              CAST(ROUND(si.price * si.quantity, 0) AS SIGNED))) as total
-                from cancun.shipment_item si
-                inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
-                where si.is_deleted = 0
-                  and si.item_status in ('ORDER')
-                  and s.status in ('PAYMENT','SHIPPING', 'SHIPPING_COMPLETE', 'READY_SHIPMENT')
-                  and substr(s.order_dated_at, 1, 10) >= '2025-06-01'
-                  and substr(s.order_dated_at, 1, 10) <= '2025-08-03'
-                group by 1, 2, 3
-            ) A
+            select year(substr(s.order_dated_at, 1, 10)) as order_year,
+                   week(substr(s.order_dated_at, 1, 10),1) as order_week,
+                   s.order_number,
+                   sum(IF(si.tax_type = 'TAX',
+                          CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) + si.price * si.quantity -
+                          CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED),
+                          CAST(ROUND(si.price * si.quantity, 0) AS SIGNED))) as total
+            from cancun.shipment_item si
+            inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
+            where si.is_deleted = 0
+              and si.item_status in ('ORDER')
+              and s.status in ('PAYMENT','SHIPPING', 'SHIPPING_COMPLETE', 'READY_SHIPMENT')
+              and substr(s.order_dated_at, 1, 10) >= '2025-06-01'
+              and substr(s.order_dated_at, 1, 10) <= '2025-08-03'
             group by 1, 2, 3
-        ) B
-    ) C
-    group by 1, 2
+        ) A
+        group by 1, 2, 3
+    ) B
+) C
+group by 1, 2
     """
 
     df = pd.read_sql(query, connection)
@@ -512,7 +520,7 @@ def update_bs_segment_sheets(direct_df, parcel_df):
             for bs_key, bs_row in bs_rows.items():
                 if bs_key in row:
                     percentage = row[bs_key] if pd.notna(row[bs_key]) else 0
-                    worksheet.update_cell(bs_row, target_col, float(percentage))
+                    worksheet.update_cell(bs_row, target_col, percentage)
                     time.sleep(1.0)
                     print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}%")
 
@@ -571,7 +579,7 @@ def update_total_bs_segment_sheets(total_bs_df):
         for bs_key, bs_row in total_bs_rows.items():
             if bs_key in row:
                 percentage = row[bs_key] if pd.notna(row[bs_key]) else 0
-                worksheet.update_cell(bs_row, target_col, float(percentage))
+                worksheet.update_cell(bs_row, target_col, percentage)
                 time.sleep(1.0)
                 print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}%")
 
