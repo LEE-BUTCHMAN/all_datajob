@@ -522,7 +522,7 @@ def update_bs_segment_sheets(direct_df, parcel_df):
             for bs_key, bs_row in bs_rows.items():
                 if bs_key in row:
                     percentage = row[bs_key] if pd.notna(row[bs_key]) else 0
-                    worksheet.update_cell(bs_row, target_col, float(percentage))
+                    worksheet.update_cell(bs_row, target_col, percentage)
                     time.sleep(1.0)
                     print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}%")
 
@@ -582,7 +582,7 @@ def update_total_bs_segment_sheets(total_bs_df):
         for bs_key, bs_row in total_bs_rows.items():
             if bs_key in row:
                 percentage = row[bs_key] if pd.notna(row[bs_key]) else 0
-                worksheet.update_cell(bs_row, target_col, float(percentage))
+                worksheet.update_cell(bs_row, target_col, percentage)
                 time.sleep(1.0)
                 print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}%")
 
