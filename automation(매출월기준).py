@@ -147,11 +147,11 @@ def get_bs_segment_data():
            select entering_year,
        entering_month,
        delivery_type,
-       max(case when bs_seg = '15만_under' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_under_percentage',
-       max(case when bs_seg = '15만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_up_percentage',
-       max(case when bs_seg = '20만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '20_up_percentage',
-       max(case when bs_seg = '25만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '25_up_percentage',
-       max(case when bs_seg = '30만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '30_up_percentage'
+       max(case when bs_seg = '15만_under' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_under_percentage',
+       max(case when bs_seg = '15만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_up_percentage',
+       max(case when bs_seg = '20만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '20_up_percentage',
+       max(case when bs_seg = '25만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '25_up_percentage',
+       max(case when bs_seg = '30만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '30_up_percentage'
 from (
     select entering_year,
            entering_month,
@@ -159,8 +159,8 @@ from (
            bs_seg,
            cnt,
            total,
-           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_month), 2) as percentage,
-           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_month), 2) as percentage1,
+           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_month), 1) as percentage,
+           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_month), 1) as percentage1,
            SUM(cnt) OVER (PARTITION BY entering_year, entering_month) as total_orders,
            SUM(total) OVER (PARTITION BY entering_year, entering_month) as total_amount
     from (
@@ -330,19 +330,19 @@ def get_total_bs_segment_data():
     query = """
             select entering_year,
        entering_month,
-       max(case when bs_seg = '15만_under' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_under_percentage',
-       max(case when bs_seg = '15만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_up_percentage',
-       max(case when bs_seg = '20만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '20_up_percentage',
-       max(case when bs_seg = '25만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '25_up_percentage',
-       max(case when bs_seg = '30만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '30_up_percentage'
+      max(case when bs_seg = '15만_under' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_under_percentage',
+      max(case when bs_seg = '15만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_up_percentage',
+      max(case when bs_seg = '20만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '20_up_percentage',
+      max(case when bs_seg = '25만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '25_up_percentage',
+      max(case when bs_seg = '30만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '30_up_percentage'
 from (
     select entering_year,
            entering_month,
            bs_seg,
            cnt,
            total,
-           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_month), 2) as percentage,
-           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_month), 2) as percentage1,
+           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_month), 1) as percentage,
+           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_month), 1) as percentage1,
            SUM(cnt) OVER (PARTITION BY entering_year, entering_month) as total_orders,
            SUM(total) OVER (PARTITION BY entering_year, entering_month) as total_amount
     from (
@@ -386,7 +386,7 @@ group by 1, 2
     return df
 
 # 업데이트할 월 설정 (여기만 바꾸면 모든 함수에 적용됨)
-TARGET_MONTH = 7  # 월 업데이트
+TARGET_MONTH = 8  # 월 업데이트
 
 
 def update_delivery_data_by_row(df, delivery_type, item_rows, worksheet):

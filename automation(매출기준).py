@@ -147,11 +147,11 @@ def get_bs_segment_data():
             select entering_year,
        entering_week,
        delivery_type,
-       max(case when bs_seg = '15만_under' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_under_percentage',
-       max(case when bs_seg = '15만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_up_percentage',
-       max(case when bs_seg = '20만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '20_up_percentage',
-       max(case when bs_seg = '25만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '25_up_percentage',
-       max(case when bs_seg = '30만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '30_up_percentage'
+       max(case when bs_seg = '15만_under' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_under_percentage',
+       max(case when bs_seg = '15만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_up_percentage',
+       max(case when bs_seg = '20만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '20_up_percentage',
+       max(case when bs_seg = '25만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '25_up_percentage',
+       max(case when bs_seg = '30만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '30_up_percentage'
 from (
     select entering_year,
            entering_week,
@@ -159,8 +159,8 @@ from (
            bs_seg,
            cnt,
            total,
-           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_week), 2) as percentage,
-           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_week), 2) as percentage1,
+           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_week), 1) as percentage,
+           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_week), 1) as percentage1,
            SUM(cnt) OVER (PARTITION BY entering_year, entering_week) as total_orders,
            SUM(total) OVER (PARTITION BY entering_year, entering_week) as total_amount
     from (
@@ -330,19 +330,19 @@ def get_total_bs_segment_data():
     query = """
             select entering_year,
        entering_week,
-       max(case when bs_seg = '15만_under' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_under_percentage',
-       max(case when bs_seg = '15만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '15_up_percentage',
-       max(case when bs_seg = '20만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '20_up_percentage',
-       max(case when bs_seg = '25만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '25_up_percentage',
-       max(case when bs_seg = '30만_up' then CONCAT(percentage, '(', percentage1, ')') else null end) as '30_up_percentage'
+       max(case when bs_seg = '15만_under' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_under_percentage',
+       max(case when bs_seg = '15만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_up_percentage',
+       max(case when bs_seg = '20만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '20_up_percentage',
+       max(case when bs_seg = '25만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '25_up_percentage',
+       max(case when bs_seg = '30만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '30_up_percentage'
 from (
     select entering_year,
            entering_week,
            bs_seg,
            cnt,
            total,
-           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_week), 2) as percentage,
-           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_week), 2) as percentage1,
+           ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_week), 1) as percentage,
+           ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_week), 1) as percentage1,
            SUM(cnt) OVER (PARTITION BY entering_year, entering_week) as total_orders,
            SUM(total) OVER (PARTITION BY entering_year, entering_week) as total_amount
     from (
