@@ -147,11 +147,11 @@ def get_bs_segment_data():
             select entering_year,
        entering_week,
        delivery_type,
-       max(case when bs_seg = '15만_under' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_under_percentage',
-       max(case when bs_seg = '15만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_up_percentage',
-       max(case when bs_seg = '20만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '20_up_percentage',
-       max(case when bs_seg = '25만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '25_up_percentage',
-       max(case when bs_seg = '30만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '30_up_percentage'
+       max(case when bs_seg = '15만_under' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '15_under_percentage',
+       max(case when bs_seg = '15만_up' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '15_up_percentage',
+       max(case when bs_seg = '20만_up' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '20_up_percentage',
+       max(case when bs_seg = '25만_up' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '25_up_percentage',
+       max(case when bs_seg = '30만_up' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '30_up_percentage'
 from (
     select entering_year,
            entering_week,
@@ -161,6 +161,7 @@ from (
            total,
            ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_week), 1) as percentage,
            ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_week), 1) as percentage1,
+           ROUND(net_total * 100.0 / SUM(net_total) OVER (PARTITION BY entering_year, entering_week), 1) as percentage2,
            SUM(cnt) OVER (PARTITION BY entering_year, entering_week) as total_orders,
            SUM(total) OVER (PARTITION BY entering_year, entering_week) as total_amount
     from (
@@ -175,7 +176,8 @@ from (
                    when total >= 300000 then '30만_up'
                    end as bs_seg,
                count(distinct order_number) as cnt,
-               sum(total) as total
+               sum(total) as total,
+               sum(total - point - coupon + delivery_amount) as net_total
         from (
             select year(substr(si.entering_dated_at, 1, 10)) as entering_year,
                    week(substr(si.entering_dated_at, 1, 10), 1) as entering_week,
@@ -184,7 +186,12 @@ from (
                    sum(IF(si.tax_type = 'TAX',
                           CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) + si.price * si.quantity -
                           CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED),
-                          CAST(ROUND(si.price * si.quantity, 0) AS SIGNED))) as total
+                          CAST(ROUND(si.price * si.quantity, 0) AS SIGNED))) as total,
+                   sum(IF(si.tax_type = 'TAX', CAST(ROUND(si.use_point / 1.1, 0) AS SIGNED), si.use_point)) AS point,
+                   sum(IF(si.tax_type = 'TAX',
+                          CAST(ROUND(si.coupon_discount_amount / 1.1, 0) AS SIGNED),
+                          si.coupon_discount_amount)) AS coupon,
+                   sum(CAST(ROUND(s.delivery_price / 1.1, 0) AS SIGNED)) as delivery_amount
             from cancun.shipment_item si
             inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
             where si.is_deleted = 0
@@ -330,11 +337,11 @@ def get_total_bs_segment_data():
     query = """
             select entering_year,
        entering_week,
-       max(case when bs_seg = '15만_under' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_under_percentage',
-       max(case when bs_seg = '15만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '15_up_percentage',
-       max(case when bs_seg = '20만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '20_up_percentage',
-       max(case when bs_seg = '25만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '25_up_percentage',
-       max(case when bs_seg = '30만_up' then CONCAT(percentage, '%(', percentage1, '%)') else null end) as '30_up_percentage'
+       max(case when bs_seg = '15만_under' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '15_under_percentage',
+       max(case when bs_seg = '15만_up' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '15_up_percentage',
+       max(case when bs_seg = '20만_up' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '20_up_percentage',
+       max(case when bs_seg = '25만_up' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '25_up_percentage',
+       max(case when bs_seg = '30만_up' then CONCAT(percentage, '%(', percentage2, '%)') else null end) as '30_up_percentage'
 from (
     select entering_year,
            entering_week,
@@ -343,6 +350,7 @@ from (
            total,
            ROUND(cnt * 100.0 / SUM(cnt) OVER (PARTITION BY entering_year, entering_week), 1) as percentage,
            ROUND(total * 100.0 / SUM(total) OVER (PARTITION BY entering_year, entering_week), 1) as percentage1,
+           ROUND(net_total * 100.0 / SUM(net_total) OVER (PARTITION BY entering_year, entering_week), 1) as percentage2,
            SUM(cnt) OVER (PARTITION BY entering_year, entering_week) as total_orders,
            SUM(total) OVER (PARTITION BY entering_year, entering_week) as total_amount
     from (
@@ -356,7 +364,8 @@ from (
                    when total >= 300000 then '30만_up'
                    end as bs_seg,
                count(distinct order_number) as cnt,
-               sum(total) as total
+               sum(total) as total,
+               sum(total - point - coupon + delivery_amount) as net_total
         from (
             select year(substr(si.entering_dated_at, 1, 10)) as entering_year,
                    week(substr(si.entering_dated_at, 1, 10),1) as entering_week,
@@ -364,7 +373,12 @@ from (
                    sum(IF(si.tax_type = 'TAX',
                           CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED) + si.price * si.quantity -
                           CAST(ROUND(si.price * si.quantity / 1.1, 0) AS SIGNED),
-                          CAST(ROUND(si.price * si.quantity, 0) AS SIGNED))) as total
+                          CAST(ROUND(si.price * si.quantity, 0) AS SIGNED))) as total,
+                          sum(IF(si.tax_type = 'TAX', CAST(ROUND(si.use_point / 1.1, 0) AS SIGNED), si.use_point)) AS point,
+                          sum(IF(si.tax_type = 'TAX',
+                          CAST(ROUND(si.coupon_discount_amount / 1.1, 0) AS SIGNED),
+                          si.coupon_discount_amount)) AS coupon,
+                   sum(CAST(ROUND(s.delivery_price / 1.1, 0) AS SIGNED)) as delivery_amount
             from cancun.shipment_item si
             inner join cancun.shipment s on s.id = si.shipment_id and s.status != 'DELETE'
             where si.is_deleted = 0
@@ -386,7 +400,7 @@ group by 1, 2
     return df
 
 # 업데이트할 주차 설정 (여기만 바꾸면 모든 함수에 적용됨)
-TARGET_WEEK = 31  # 주차 업데이트
+TARGET_WEEK = 29  # 주차 업데이트
 
 
 def update_delivery_data_by_row(df, delivery_type, item_rows, worksheet):
@@ -524,7 +538,7 @@ def update_bs_segment_sheets(direct_df, parcel_df):
                     percentage = row[bs_key] if pd.notna(row[bs_key]) else 0
                     worksheet.update_cell(bs_row, target_col, percentage)
                     time.sleep(1.0)
-                    print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}%")
+                    print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}")
 
             print(f"{delivery_type} {target_week}주차 금액구간 비중 완료!")
             break  # 해당 주차는 하나만 있으므로 break
@@ -584,7 +598,7 @@ def update_total_bs_segment_sheets(total_bs_df):
                 percentage = row[bs_key] if pd.notna(row[bs_key]) else 0
                 worksheet.update_cell(bs_row, target_col, percentage)
                 time.sleep(1.0)
-                print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}%")
+                print(f"  {bs_key}: 행{bs_row}, 열{target_col} = {percentage}")
 
         print(f"전체 {target_week}주차 금액구간 비중 완료!")
         break
