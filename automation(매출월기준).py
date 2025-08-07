@@ -168,12 +168,12 @@ from (
                entering_month,
                delivery_type,
                case
-                   when total >= 100000 and total < 150000 then '15만_under'
+                   when total < 150000 then '15만_under' 
                    when total >= 150000 and total < 200000 then '15만_up'
                    when total >= 200000 and total < 250000 then '20만_up'
                    when total >= 250000 and total < 300000 then '25만_up'
                    when total >= 300000 then '30만_up'
-                   else '10만_under' end as bs_seg,
+                   end as bs_seg,
                count(distinct order_number) as cnt,
                sum(total) as total
         from (
@@ -349,12 +349,12 @@ from (
         select entering_year,
                entering_month,
                case
-                   when total >= 100000 and total < 150000 then '15만_under'
+                   when total < 150000 then '15만_under' 
                    when total >= 150000 and total < 200000 then '15만_up'
                    when total >= 200000 and total < 250000 then '20만_up'
                    when total >= 250000 and total < 300000 then '25만_up'
                    when total >= 300000 then '30만_up'
-                   else '10만_under' end as bs_seg,
+                   end as bs_seg,
                count(distinct order_number) as cnt,
                sum(total) as total
         from (
@@ -386,7 +386,7 @@ group by 1, 2
     return df
 
 # 업데이트할 월 설정 (여기만 바꾸면 모든 함수에 적용됨)
-TARGET_MONTH = 8  # 월 업데이트
+TARGET_MONTH = 7  # 월 업데이트
 
 
 def update_delivery_data_by_row(df, delivery_type, item_rows, worksheet):
