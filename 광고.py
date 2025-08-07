@@ -66,7 +66,7 @@ def copy_raw_to_ad_sheet():
     client = gspread.authorize(creds)
 
     # 시트 ID
-    source_sheet_id = '1QQ1SitJ3kSavF71xAIADmKrkt01IECP5zSY8hxVX_A8'  # 원본
+    source_sheet_id = '1JdJ6GR71mXYAmS9gBHM28xsCWAvLrxYEdU97yK1-VIk'  # 원본
     target_sheet_id = '1zmujGEM6C51LxrljTlIsKAwxgXAj82K9YfkQxpg7OjE'  # 타겟
 
     try:
