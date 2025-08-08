@@ -329,7 +329,7 @@ def update_signup_sheets(signup_df, new_users_df, comparison_df, direct_shipping
     # 추천타입별 행 번호
     recommender_rows = {
         '친구추천': 8,  # 8행
-        '오프라인': 9  # 9행
+        '영업대행': 9  # 9행
     }
 
     print(f"\n=== 회원가입 추천타입별 데이터 업데이트 ===")
