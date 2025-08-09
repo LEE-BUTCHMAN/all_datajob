@@ -75,7 +75,7 @@ def get_weekly_data():
       sum(IF(si.tax_type = 'TAX', CAST(ROUND(si.use_point / 1.1, 0) AS SIGNED), si.use_point)) as point,
       count(distinct s.order_number) as orders,
       count(s.order_number) as  orders_sku,
-      count(distinct u.company_name) as  orders_burial,
+      count(distinct bu.id) as  orders_burial,
       count(DISTINCT CASE
     WHEN IF((SELECT COUNT(*)
              FROM cancun.shipment spmnt
